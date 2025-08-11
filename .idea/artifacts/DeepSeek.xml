@@ -1,0 +1,9 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="DeepSeek">
+    <output-path>$PROJECT_DIR$/out/artifacts/DeepSeek</output-path>
+    <root id="archive" name="DeepSeek.jar">
+      <element id="dir-copy" path="$PROJECT_DIR$/build/resources/main" />
+      <element id="dir-copy" path="$PROJECT_DIR$/build/classes/java/main" />
+    </root>
+  </artifact>
+</component>

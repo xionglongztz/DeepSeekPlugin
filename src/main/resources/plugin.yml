@@ -1,0 +1,27 @@
+name: DeepSeek
+version: '1.7'
+main: xionglongztz.DeepSeek
+api-version: '1.16'
+authors: [ xionglongztz ]
+description: "DeepSeek Chat 聊天插件"
+softdepend:
+  - 'TrChat'
+  - 'Vault'
+  - 'PlaceholderAPI'
+website: https://www.minebbs.com/resources/deepseek-deepseek.11808/
+commands:
+  deepseek:
+    description: DeepSeek插件管理命令
+    usage: /<command> [ reload | reset | help | revoke ]
+    aliases: [ ds ]
+    permission: deepseek.admin
+permissions:
+  deepseek.use:
+    description: 允许玩家使用@AI功能
+    default: op
+  deepseek.admin:
+    description: 允许管理DeepSeek插件
+    default: op
+  deepseek.bypass:
+    description: 允许玩家免费使用DeepSeek
+    default: op
