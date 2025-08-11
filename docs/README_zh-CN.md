@@ -17,9 +17,9 @@
 ## 命令列表
 | 命令 | 描述 | 权限节点 |
 |------|------|----------|
-| `/deepseek reload` 或 `/ds rl` | 重载插件配置 | `deepseek.admin` |
-| `/deepseek reset` 或 `/ds rs` | 清空对话历史 | `deepseek.admin` |
-| `/deepseek help` 或 `/ds h` | 显示帮助信息 | `deepseek.admin` |
+| `/deepseek reload` 或 `/ds reload` | 重载插件配置 | `deepseek.admin` |
+| `/deepseek reset` 或 `/ds reset` | 清空对话历史 | `deepseek.admin` |
+| `/deepseek help` 或 `/ds help` | 显示帮助信息 | `deepseek.admin` |
 | `/deepseek revoke` 或 `/ds r` | 撤回请求并阻止记录 | `deepseek.admin` |
 
 ## 权限说明
