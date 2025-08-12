@@ -201,12 +201,12 @@ public class DeepSeek extends JavaPlugin implements Listener {
             String systemPrompt = config.getString("systemPrompt",
                     "你是一个Minecraft游戏助手。回答要简短(最多200字符)，用中文回答。不要使用任何Markdown格式。");
             String prompt;
-            prompt = systemPrompt + "\n\n对话历史:\n" + history;// 仅记录历史记录
-//            if (config.getBoolean("PlayerNamePrompt")){
-//                prompt = systemPrompt + "\n\n对话历史:\n" + history + "\n玩家名:" + player.getName() + "问题:" + question;
-//            } else {
-//                prompt = systemPrompt + "\n\n对话历史:\n" + history + "\n玩家问题:" + question;
-//            }
+            //prompt = systemPrompt + "\n\n对话历史:\n" + history;// 仅记录历史记录
+            if (config.getBoolean("PlayerNamePrompt")){
+                prompt = systemPrompt + "\n\n对话历史:\n" + history + "\n玩家名:" + player.getName() + "问题:" + question;
+            } else {
+                prompt = systemPrompt + "\n\n对话历史:\n" + history + "\n玩家问题:" + question;
+            }
             int maxTokens = config.getInt("tokens", 2000);
             if (prompt.length() > maxTokens) {
                 prompt = prompt.substring(prompt.length() - maxTokens);
@@ -234,9 +234,6 @@ public class DeepSeek extends JavaPlugin implements Listener {
                     Bukkit.getScheduler().runTask(this, () -> {
                         if (doRevoke) {
                             Bukkit.broadcastMessage(formatMessage(config.getString("revokeMsg","&c当前会话已被管理员撤回!")));
-                            synchronized (processingLock) {
-                                isProcessing.set(false);
-                            }
                         } else {
                             if (config.getBoolean("PlayerNamePrompt")){
                                 addToHistory("玩家" + player.getName() + ": " + question + "\nAI: " + finalResponse);
@@ -247,9 +244,9 @@ public class DeepSeek extends JavaPlugin implements Listener {
                             if (!player.hasPermission("deepseek.bypass")) {// 若没有免费权限，则进行扣款操作
                                 vaultWithdraw(player, tokens);// 根据tokens扣款
                             }
-                            synchronized (processingLock) {
-                                isProcessing.set(false);
-                            }
+                        }
+                        synchronized (processingLock) {
+                            isProcessing.set(false);
                         }
                     });
                 } catch (IOException e) {

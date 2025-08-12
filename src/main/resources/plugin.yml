@@ -1,5 +1,5 @@
 name: DeepSeek
-version: '1.7'
+version: '1.8'
 main: xionglongztz.DeepSeek
 api-version: '1.16'
 authors: [ xionglongztz ]
