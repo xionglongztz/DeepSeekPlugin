@@ -14,12 +14,11 @@ import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
 import java.io.*;
 import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URL;
-import java.nio.channels.AsynchronousCloseException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import net.milkbowl.vault.economy.Economy;// Vault
 
@@ -28,19 +27,16 @@ import static xionglongztz.DsUtils.*;
 public class DeepSeek extends JavaPlugin implements Listener {
     // 各种变量
     public FileConfiguration config;
-    public final Map<UUID, String> conversationHistory = new ConcurrentHashMap<>();
+    //public final Map<UUID, String> conversationHistory = new ConcurrentHashMap<>();
+    private final Deque<String> conversationHistory = new ArrayDeque<>();// 玩家历史记录
     private static final String PF = "&r[&9DeepSeek&r] ";// 插件前缀
     public static String newPF = "&r[&9DeepSeek&r] ";// 管理员自定义的插件前缀
     // 使用 AtomicBoolean 替代简单的 boolean 保证线程安全
     public final AtomicBoolean isProcessing = new AtomicBoolean(false);
     public final Object processingLock = new Object();
-    private static String isProcessingMsg;
-    private static String isRequest;
-    private static String isBusyMsg;
-    private static Boolean PlayerNamePrompt;
     public static Economy econ = null;// 经济插件实例
     private int tokens;// 上一个请求中token数量
-    private final AtomicBoolean doRevoke = new AtomicBoolean(false);// 定义是否撤回
+    private Boolean doRevoke = false;// 定义是否撤回
     // 启动和停止相关
     @Override
     public void onEnable() {
@@ -174,7 +170,7 @@ public class DeepSeek extends JavaPlugin implements Listener {
         // 在权限检查前先判断是否正在处理
         synchronized (processingLock) {
             if (isProcessing.get() && message.startsWith(CallMethod)) {
-                player.sendMessage(formatMessage(isProcessingMsg));
+                player.sendMessage(formatMessage(config.getString("isProcessingMsg")));
                 // 如果有处理中的请求，直接忽略所有新请求
                 return;
             }
@@ -196,19 +192,21 @@ public class DeepSeek extends JavaPlugin implements Listener {
                     }
                     isProcessing.set(true);
                 }
-                Bukkit.broadcastMessage(formatMessage(isRequest));
+                Bukkit.broadcastMessage(formatMessage(config.getString("isRequestMsg")));
             }, 2L); // 2tick延迟
-            String question = message.substring(3).trim();
-            String history = conversationHistory.getOrDefault(player.getUniqueId(), "");
+            String question = message.substring(Objects.requireNonNull(config.getString("Call")).length()).trim();// 排除前面的几个调用词
+            // String history = conversationHistory.getOrDefault(player.getUniqueId(), "");
+            String history = getAllHistory();// 获取历史记录
             // 构建完整提示，包含系统预设
             String systemPrompt = config.getString("systemPrompt",
                     "你是一个Minecraft游戏助手。回答要简短(最多200字符)，用中文回答。不要使用任何Markdown格式。");
             String prompt;
-            if (PlayerNamePrompt){
-                prompt = systemPrompt + "\n\n对话历史:\n" + history + "\n玩家名:" + player.getName() + "问题:" + question;
-            } else {
-                prompt = systemPrompt + "\n\n对话历史:\n" + history + "\n玩家问题:" + question;
-            }
+            prompt = systemPrompt + "\n\n对话历史:\n" + history;// 仅记录历史记录
+//            if (config.getBoolean("PlayerNamePrompt")){
+//                prompt = systemPrompt + "\n\n对话历史:\n" + history + "\n玩家名:" + player.getName() + "问题:" + question;
+//            } else {
+//                prompt = systemPrompt + "\n\n对话历史:\n" + history + "\n玩家问题:" + question;
+//            }
             int maxTokens = config.getInt("tokens", 2000);
             if (prompt.length() > maxTokens) {
                 prompt = prompt.substring(prompt.length() - maxTokens);
@@ -217,7 +215,7 @@ public class DeepSeek extends JavaPlugin implements Listener {
             Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
                 Thread.currentThread().setName("DeepSeek-AsyncTask");// 请求调用的线程名称
                 try {
-                    if (doRevoke.get()) {
+                    if (doRevoke) {
                         Bukkit.broadcastMessage(formatMessage(config.getString("revokeMsg","&e当前会话已被管理员撤回!")));
                         synchronized (processingLock) {
                             isProcessing.set(false);
@@ -231,47 +229,46 @@ public class DeepSeek extends JavaPlugin implements Listener {
                     if (response.length() > maxResponseLength) {
                         response = response.substring(0, maxResponseLength) + "...";
                     }
-                    if (PlayerNamePrompt){
-                        addToHistory(player.getUniqueId(), "玩家" + player.getName() + ": " + question + "\nAI: " + response);
-                    } else {
-                        addToHistory(player.getUniqueId(), "玩家: " + question + "\nAI: " + response);
-                    }
                     // 防止过长
                     String finalResponse = response;
                     Bukkit.getScheduler().runTask(this, () -> {
-                        if (doRevoke.get()) {
-                            Bukkit.broadcastMessage(formatMessage(config.getString("revokeMsg","&e当前会话已被管理员撤回!")));
+                        if (doRevoke) {
+                            Bukkit.broadcastMessage(formatMessage(config.getString("revokeMsg","&c当前会话已被管理员撤回!")));
                             synchronized (processingLock) {
                                 isProcessing.set(false);
                             }
-                            return;
-                        }
-                        Thread.currentThread().setName("DeepSeek-Broadcast");// 请求调用的线程名称
-                        broadcastMultiline(finalResponse);// 广播消息
-                        if (!player.hasPermission("deepseek.bypass")) {// 若没有免费权限，则进行扣款操作
-                            vaultWithdraw(player, tokens);// 根据tokens扣款
-                        }
-                        synchronized (processingLock) {
-                            isProcessing.set(false);
+                        } else {
+                            if (config.getBoolean("PlayerNamePrompt")){
+                                addToHistory("玩家" + player.getName() + ": " + question + "\nAI: " + finalResponse);
+                            } else {
+                                addToHistory("玩家: " + question + "\nAI: " + finalResponse);
+                            }// 向历史记录增加新的条目
+                            broadcastMultiline(finalResponse);// 广播消息
+                            if (!player.hasPermission("deepseek.bypass")) {// 若没有免费权限，则进行扣款操作
+                                vaultWithdraw(player, tokens);// 根据tokens扣款
+                            }
+                            synchronized (processingLock) {
+                                isProcessing.set(false);
+                            }
                         }
                     });
                 } catch (IOException e) {
                     getLogger().severe(e.getMessage());// 将错误内容输出到日志
                     Bukkit.getScheduler().runTask(this, () -> {
-                        Bukkit.broadcastMessage(formatMessage(isBusyMsg));// 发生错误时给玩家的消息
+                        Bukkit.broadcastMessage(formatMessage(config.getString("isBusyMsg")));// 发生错误时给玩家的消息
                         synchronized (processingLock) {
                             isProcessing.set(false);
                         }
                     });
                 }
             });
-            doRevoke.set(false);
+            doRevoke = false;
         }
     }// 调用请求
     private String sendRequestToDeepSeek(String prompt) throws IOException {
         String apiUrl = config.getString("URL", "https://api.deepseek.com/v1/chat/completions");
         String apiKey = config.getString("APIkey");
-        URL url = new URL(apiUrl);
+        URL url = URI.create(apiUrl).toURL();
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
         connection.setRequestMethod("POST");
         connection.setRequestProperty("Content-Type", "application/json");
@@ -316,7 +313,7 @@ public class DeepSeek extends JavaPlugin implements Listener {
         }
     }// 向DeepSeek服务器发出请求
     public void revoke() {
-        doRevoke.set(true);
+        doRevoke = true;
     }// 撤回当前回复
     // 配置文件相关
     public void loadConfig() {// 载入配置
@@ -337,19 +334,11 @@ public class DeepSeek extends JavaPlugin implements Listener {
             }
         }
         config = YamlConfiguration.loadConfiguration(configFile);
-        isProcessingMsg = config.getString("isProcessingMsg", "&c当前响应正在请求中,请耐心等待!");
-        isRequest = config.getString("isRequestMsg", "&7&o请求中...");
-        isBusyMsg = config.getString("isBusyMsg", "&c服务器繁忙，请稍后再试。");
-        PlayerNamePrompt = config.getBoolean("PlayerNamePrompt", true);
         newPF = config.getString("Prefix", "&r[&9DeepSeek&r] ");
     }// 初始化配置文件
     public void reloadPluginConfig() {
         reloadConfig();
         config = getConfig();
-        isProcessingMsg = config.getString("isProcessingMsg", "&c当前响应正在请求中,请耐心等待!");
-        isRequest = config.getString("isRequestMsg", "&7&o请求中...");
-        isBusyMsg = config.getString("isBusyMsg", "&c服务器繁忙，请稍后再试。");
-        PlayerNamePrompt = config.getBoolean("PlayerNamePrompt", true);
         newPF = config.getString("Prefix", "&r[&9DeepSeek&r] ");
     }// 重载插件
     // 历史记录相关
@@ -357,24 +346,17 @@ public class DeepSeek extends JavaPlugin implements Listener {
         // 清空历史记录
         conversationHistory.clear();
     }// 清空历史记录
-    private void addToHistory(UUID playerId, String newEntry) {
-        // 清理过期的玩家历史
-        // 最多缓存100个玩家的历史
-        int MAX_HISTORY_SIZE = 100;
-        if (conversationHistory.size() > MAX_HISTORY_SIZE) {
-            Iterator<UUID> it = conversationHistory.keySet().iterator();
-            it.next(); // 移除最老的一个
-            it.remove();
+    private void addToHistory(String newEntry) {
+        int MAX_HISTORY_SIZE = 100;// 历史记录上限
+        // 检查并移除最老的条目
+        while (conversationHistory.size() >= MAX_HISTORY_SIZE) {
+            conversationHistory.removeFirst(); // 移除最老的提问
         }
-        // 获取并更新历史
-        String history = conversationHistory.getOrDefault(playerId, "");
-        String[] lines = history.split("\n");
-        // 在插件主类中添加这些控制
-        // 每个玩家最多保存20轮对话
-        int MAX_HISTORY_LENGTH = 20;
-        if (lines.length >= MAX_HISTORY_LENGTH * 2) { // 每条对话占2行(提问+回答)
-            history = String.join("\n", Arrays.copyOfRange(lines, lines.length - MAX_HISTORY_LENGTH * 2, lines.length));
-        }
-        conversationHistory.put(playerId, history + "\n" + newEntry);
+        // 添加新条目
+        conversationHistory.addLast(newEntry);
     }// 添加消息到历史记录
+    private String getAllHistory() {
+        // 获取历史记录
+        return String.join("\n", conversationHistory);
+    } // 获取全部历史记录
 }

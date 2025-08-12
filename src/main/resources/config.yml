@@ -21,7 +21,7 @@ isProcessingMsg: "&c当前响应正在请求中,请耐心等待!" # 正在处理
 isRequestMsg: "&7&o请求中..." # 已发送请求,等待回复时的消息
 isBusyMsg: "&c服务器繁忙，请稍后再试。" # 当发生错误时消息内容
 noPermission: "&c你没有这么做的权限!" # 当没有权限时显示
-revokeMsg: "&e当前会话已被管理员撤回!" # 当管理员撤回当前回复时触发
+revokeMsg: "&c当前会话已被管理员撤回!" # 当管理员撤回当前回复时触发
 
 # Vault 设置 (若不需要，设置为0即可)
 vaultPerResponse: 50 # 每次请求时的基础费用
