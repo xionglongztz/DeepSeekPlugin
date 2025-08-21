@@ -185,7 +185,7 @@ public class DeepSeek extends JavaPlugin implements Listener {
         }
         if (message.startsWith(CallMethod)) {
             Bukkit.getScheduler().runTaskLater(this, () -> {
-                Thread.currentThread().setName("DeepSeek-AsyncTask");// 请求调用的线程名称
+                //Thread.currentThread().setName("DeepSeek-AsyncTask");// 请求调用的线程名称
                 synchronized (processingLock) {
                     if (isProcessing.get()) {
                         return;
@@ -213,7 +213,7 @@ public class DeepSeek extends JavaPlugin implements Listener {
             }
             String finalPrompt = prompt;
             Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
-                Thread.currentThread().setName("DeepSeek-AsyncTask");// 请求调用的线程名称
+                //Thread.currentThread().setName("DeepSeek-AsyncTask");// 请求调用的线程名称
                 try {
                     if (doRevoke) {
                         Bukkit.broadcastMessage(formatMessage(config.getString("revokeMsg","&e当前会话已被管理员撤回!")));
