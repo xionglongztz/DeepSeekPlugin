@@ -22,7 +22,6 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Filter;
 import java.util.logging.Level;
-import java.util.logging.LogRecord;
 import java.util.logging.Logger;
 import net.milkbowl.vault.economy.Economy;// Vault
 
@@ -109,40 +108,27 @@ public class DeepSeek extends JavaPlugin implements Listener {
             console.sendMessage(colorize(PF + "&a挂钩 &7- &a已找到 &6PlaceholderAPI"));
 
             // 获取 PlaceholderAPI 的 Logger 实例
-            Logger papiLogger = Bukkit.getPluginManager().getPlugin("PlaceholderAPI").getLogger();
+            Logger papiLogger = Objects.requireNonNull(Bukkit.getPluginManager().getPlugin("PlaceholderAPI")).getLogger();
             Filter originalFilter = papiLogger.getFilter(); // 保存原始过滤器
 
             // 创建一个自定义的日志过滤器
-            Filter logFilter = new Filter() {
-                @Override
-                public boolean isLoggable(LogRecord record) {
-                    String message = record.getMessage();
-                    Throwable thrown = record.getThrown();
+            Filter logFilter = record -> {
+                String message = record.getMessage();
+                Throwable thrown = record.getThrown();
 
-                    boolean isCanceledException = (thrown != null && thrown instanceof java.util.concurrent.CancellationException);
-                    boolean isFailedDownloadMessage = (message != null && message.contains("Failed to download expansion"));
+                boolean isCanceledException = (thrown instanceof java.util.concurrent.CancellationException);
+                boolean isFailedDownloadMessage = (message != null && message.contains("Failed to download expansion"));
 
-                    // 过滤掉 SEVERE 级别的日志，如果是 CancellationException 或者包含 "Failed to download expansion"
-                    return !(record.getLevel() == Level.SEVERE && (isCanceledException || isFailedDownloadMessage));
-                }
+                // 过滤掉 SEVERE 级别的日志，如果是 CancellationException 或者包含 "Failed to download expansion"
+                return !(record.getLevel() == Level.SEVERE && (isCanceledException || isFailedDownloadMessage));
             };
             papiLogger.setFilter(logFilter); // 设置自定义过滤器
 
-            Bukkit.getScheduler().runTaskLater(this, () -> {
-                Bukkit.dispatchCommand(console, "papi ecloud download player");
-            }, 80L);
-            Bukkit.getScheduler().runTaskLater(this, () -> {
-                Bukkit.dispatchCommand(console, "papi ecloud download vault");
-            }, 90L);
-            Bukkit.getScheduler().runTaskLater(this, () -> {
-                Bukkit.dispatchCommand(console, "papi ecloud download Server");
-            }, 100L);
-            Bukkit.getScheduler().runTaskLater(this, () -> {
-                Bukkit.dispatchCommand(console, "papi ecloud download Statistic");
-            }, 110L);
-            Bukkit.getScheduler().runTaskLater(this, () -> {
-                Bukkit.dispatchCommand(console, "papi ecloud download Math");
-            }, 120L);
+            Bukkit.getScheduler().runTaskLater(this, () -> Bukkit.dispatchCommand(console, "papi ecloud download player"), 80L);
+            Bukkit.getScheduler().runTaskLater(this, () -> Bukkit.dispatchCommand(console, "papi ecloud download vault"), 90L);
+            Bukkit.getScheduler().runTaskLater(this, () -> Bukkit.dispatchCommand(console, "papi ecloud download Server"), 100L);
+            Bukkit.getScheduler().runTaskLater(this, () -> Bukkit.dispatchCommand(console, "papi ecloud download Statistic"), 110L);
+            Bukkit.getScheduler().runTaskLater(this, () -> Bukkit.dispatchCommand(console, "papi ecloud download Math"), 120L);
 
             // 在所有下载任务执行完成后，恢复原始过滤器并重载PAPI
             Bukkit.getScheduler().runTaskLater(this, () -> {

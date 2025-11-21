@@ -6,6 +6,7 @@ Prefix: "&r[&9DeepSeek&r] " # 插件前缀
 Call: "@AI" # 调用AI的方法
 
 # DeepSeek API 请求体设置
+# /!\ 重要提醒: 请勿泄露APIkey
 Model: "deepseek-chat" # 模型类型
 APIkey: "sk-****" # APIkey
 URL: "https://api.deepseek.com/v1/chat/completions" # API端点
