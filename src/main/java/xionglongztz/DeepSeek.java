@@ -1,5 +1,6 @@
 package xionglongztz;
 
+import me.clip.placeholderapi.PlaceholderAPI;
 import net.milkbowl.vault.economy.EconomyResponse;
 import org.bukkit.Bukkit;
 import org.bukkit.command.ConsoleCommandSender;
@@ -20,9 +21,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.logging.Filter;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import net.milkbowl.vault.economy.Economy;// Vault
 
 import static xionglongztz.DsUtils.*;
@@ -40,6 +38,8 @@ public class DeepSeek extends JavaPlugin implements Listener {
     public static Economy econ = null;// 经济插件实例
     private int tokens;// 上一个请求中token数量
     private Boolean doRevoke = false;// 定义是否撤回
+    public File PAPIVariableListFile;// PAPI占位符列表文件
+    public static FileConfiguration PAPIVariableList;// PAPI占位符清单
     // 启动和停止相关
     @Override
     public void onEnable() {
@@ -106,36 +106,15 @@ public class DeepSeek extends JavaPlugin implements Listener {
         if (hasPAPI) {// 检查 PlaceholderAPI
             new DsExpansion(this).register();
             console.sendMessage(colorize(PF + "&a挂钩 &7- &a已找到 &6PlaceholderAPI"));
-
-            // 获取 PlaceholderAPI 的 Logger 实例
-            Logger papiLogger = Objects.requireNonNull(Bukkit.getPluginManager().getPlugin("PlaceholderAPI")).getLogger();
-            Filter originalFilter = papiLogger.getFilter(); // 保存原始过滤器
-
-            // 创建一个自定义的日志过滤器
-            Filter logFilter = record -> {
-                String message = record.getMessage();
-                Throwable thrown = record.getThrown();
-
-                boolean isCanceledException = (thrown instanceof java.util.concurrent.CancellationException);
-                boolean isFailedDownloadMessage = (message != null && message.contains("Failed to download expansion"));
-
-                // 过滤掉 SEVERE 级别的日志，如果是 CancellationException 或者包含 "Failed to download expansion"
-                return !(record.getLevel() == Level.SEVERE && (isCanceledException || isFailedDownloadMessage));
-            };
-            papiLogger.setFilter(logFilter); // 设置自定义过滤器
-
-            Bukkit.getScheduler().runTaskLater(this, () -> Bukkit.dispatchCommand(console, "papi ecloud download player"), 80L);
-            Bukkit.getScheduler().runTaskLater(this, () -> Bukkit.dispatchCommand(console, "papi ecloud download vault"), 90L);
-            Bukkit.getScheduler().runTaskLater(this, () -> Bukkit.dispatchCommand(console, "papi ecloud download Server"), 100L);
-            Bukkit.getScheduler().runTaskLater(this, () -> Bukkit.dispatchCommand(console, "papi ecloud download Statistic"), 110L);
-            Bukkit.getScheduler().runTaskLater(this, () -> Bukkit.dispatchCommand(console, "papi ecloud download Math"), 120L);
-
-            // 在所有下载任务执行完成后，恢复原始过滤器并重载PAPI
-            Bukkit.getScheduler().runTaskLater(this, () -> {
-                papiLogger.setFilter(originalFilter); // 恢复原始过滤器
-                Bukkit.dispatchCommand(console, "papi reload");
-            }, 125L); // 确保在所有下载任务之后执行
-
+            PAPIVariableListFile = new File(getDataFolder(), "Quizs.yml");
+            if (!PAPIVariableListFile.exists()) {
+                saveResource("Expansions.yml", false);
+                console.sendMessage(colorize(PF + "&a检测到PlaceholderAPI安装,已创建默认占位符文件!"));
+                console.sendMessage(colorize(PF + "&a你可以自行修改让DeepSeek可以使用的占位符提示词"));
+                console.sendMessage(colorize(PF + "&a不过请注意Token消耗,提示词越多越强大,同时负载越高"));
+                console.sendMessage(colorize(PF + "&a本消息仅在初次配置时显示一次,将来永不显示"));
+            }
+            PAPIVariableList = YamlConfiguration.loadConfiguration(PAPIVariableListFile);
         } else {
             console.sendMessage(colorize(PF + "&c挂钩 &7- &c未找到 &6PlaceholderAPI"));
         }
@@ -233,18 +212,21 @@ public class DeepSeek extends JavaPlugin implements Listener {
             // 构建完整提示，包含系统预设
             String systemPrompt = config.getString("systemPrompt",
                     "你是一个Minecraft游戏助手。回答要简短(最多200字符)，用中文回答。不要使用任何Markdown格式。");
-            String prompt;
-            String papiVariables = "\n\n可用PAPI变量表:\n" + DsPapiVariableList.PAPI_VARIABLE_LIST;
+            StringBuilder prompt = new StringBuilder(systemPrompt);
+            if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {
+                String papiVariables = "\n\n# 可用PAPI变量表:\n" + PAPIVariableList.getString("PapiVariableList");
+                prompt.append(papiVariables);
+            }// 当PAPI存在时，将提示词拼接
             if (config.getBoolean("PlayerNamePrompt")){
-                prompt = systemPrompt + papiVariables + "\n\n对话历史:\n" + history + "\n玩家名:" + player.getName() + "问题:" + question;
+                prompt.append("\n\n# 对话历史:\n").append(history).append("\n玩家 ").append(player.getName()).append(" 问题:").append(question);
             } else {
-                prompt = systemPrompt + papiVariables + "\n\n对话历史:\n" + history + "\n玩家问题:" + question;
+                prompt.append("\n\n# 对话历史:\n").append(history).append("\n玩家问题:").append(question);
             }
             int maxTokens = config.getInt("tokens", 2000);
             if (prompt.length() > maxTokens) {
-                prompt = prompt.substring(prompt.length() - maxTokens);
+                prompt = new StringBuilder(prompt.substring(prompt.length() - maxTokens));
             }
-            String finalPrompt = prompt;
+            StringBuilder finalPrompt = prompt;// 构建最终提示词
             Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
                 //Thread.currentThread().setName("DeepSeek-AsyncTask");// 请求调用的线程名称
                 try {
@@ -255,7 +237,7 @@ public class DeepSeek extends JavaPlugin implements Listener {
                         }
                         return;
                     }
-                    String response = sendRequestToDeepSeek(finalPrompt);
+                    String response = sendRequestToDeepSeek(finalPrompt.toString());
                     response = cleanResponse(response);
                     // 截断过长的回复
                     int maxResponseLength = config.getInt("maxResponseLength", 200);
@@ -273,15 +255,15 @@ public class DeepSeek extends JavaPlugin implements Listener {
                             } else {
                                 addToHistory("玩家: " + question + "\nAI: " + finalResponse);
                             }// 向历史记录增加新的条目
-                            String parsedResponse = me.clip.placeholderapi.PlaceholderAPI.setPlaceholders(player, finalResponse);
-                            broadcastMultiline(parsedResponse);// 广播消息
+                            // TODO:这里似乎是暴力的字符串拼接，没有按照DeepSeek官方的方法写，无所谓了，回头改
+                            broadcastMultiline(parsePlaceholders(player, finalResponse));// 广播消息
                             if (!player.hasPermission("deepseek.bypass")) {// 若没有免费权限，则进行扣款操作
                                 vaultWithdraw(player, tokens);// 根据tokens扣款
                             }
                         }
                         synchronized (processingLock) {
                             isProcessing.set(false);
-                        }
+                        }// 释放锁
                     });
                 } catch (IOException e) {
                     getLogger().severe(e.getMessage());// 将错误内容输出到日志
@@ -295,7 +277,7 @@ public class DeepSeek extends JavaPlugin implements Listener {
             });
             doRevoke = false;
         }
-    }// 调用请求
+    }// 调用DeepSeek
     private String sendRequestToDeepSeek(String prompt) throws IOException {
         String apiUrl = config.getString("URL", "https://api.deepseek.com/v1/chat/completions");
         String apiKey = config.getString("APIkey");
@@ -313,12 +295,10 @@ public class DeepSeek extends JavaPlugin implements Listener {
                 escapeJson(prompt),
                 config.getDouble("Temperature",0.7),
                 config.getInt("maxResponseTokens", 300));
-
         try (OutputStream os = connection.getOutputStream()) {
             byte[] input = requestBody.getBytes(StandardCharsets.UTF_8);
             os.write(input, 0, input.length);
         }
-
         int responseCode = connection.getResponseCode();
         if (responseCode == HttpURLConnection.HTTP_OK) {
             try (BufferedReader br = new BufferedReader(
@@ -338,12 +318,14 @@ public class DeepSeek extends JavaPlugin implements Listener {
                 int contentIndex = response.indexOf("\"content\":\"") + 11;
                 int endIndex = response.indexOf("\"", contentIndex);
                 return response.substring(contentIndex, endIndex).replace("\\n", "\n");
+                // TODO:这里可能有潜在的Token记录错误的问题，会影响Vault收费功能，待判断
             }
         } else {
             throw new IOException("HTTP错误: " + responseCode);
         }
     }// 向DeepSeek服务器发出请求
     public void revoke() {
+        // 哈基米²=南北绿豆+1/哈压库奶龙
         doRevoke = true;
     }// 撤回当前回复
     // 配置文件相关
@@ -378,7 +360,7 @@ public class DeepSeek extends JavaPlugin implements Listener {
         conversationHistory.clear();
     }// 清空历史记录
     private void addToHistory(String newEntry) {
-        int MAX_HISTORY_SIZE = 100;// 历史记录上限
+        int MAX_HISTORY_SIZE = 20;// 历史记录上限
         // 检查并移除最老的条目
         while (conversationHistory.size() >= MAX_HISTORY_SIZE) {
             conversationHistory.removeFirst(); // 移除最老的提问
@@ -390,4 +372,12 @@ public class DeepSeek extends JavaPlugin implements Listener {
         // 获取历史记录
         return String.join("\n", conversationHistory);
     } // 获取全部历史记录
+    private String parsePlaceholders(Player player, String text) {
+        // 如果有PAPI则解析占位器
+        if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI") && player != null) {
+            text = PlaceholderAPI.setPlaceholders(player, text);
+        }
+        // 最后处理颜色代码
+        return colorize(text);
+    }// PAPI 解析文本
 }

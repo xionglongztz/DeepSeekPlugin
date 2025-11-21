@@ -23,6 +23,7 @@ public class DsExpansion extends PlaceholderExpansion {// 占位符扩展类
             case "1" -> "1";// 当前问题
             case "2" -> String.valueOf(2);// 是否已被回答
             default -> null;
+            // TODO:有空再写，趴了
         };
     }
 }
