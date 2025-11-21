@@ -1,36 +1,80 @@
-name: Release DeepSeek Plugin
+name: Build and Release
 
 on:
   push:
-    tags:
-      - 'v*' # 当有以 'v' 开头的标签被推送时触发
+    branches:
+      - master
+  schedule:
+    - cron: '0 0 * * *'
 
 jobs:
-  build-and-release:
+  build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v3
 
     - name: Set up JDK 21
-      uses: actions/setup-java@v4
+      uses: actions/setup-java@v3
       with:
         java-version: '21'
         distribution: 'temurin'
         cache: 'gradle'
 
+    - name: Download PaperMC Server and Set EULA
+      run: |
+        mkdir server
+        curl -o server/paper.jar https://fill-data.papermc.io/v1/objects/d4f897545310f31e623d9680786b25dd20a9989e139db050d1aacf81ecafd05c/paper-1.21.10-113.jar
+        echo "eula=true" > server/eula.txt
+        mkdir server/plugins
+
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
     - name: Build with Gradle
-      run: ./gradlew build
+      run: ./gradlew clean build
 
-    - name: Get plugin version from plugin.yml
+    - name: Get plugin version
       id: get_version
-      run: echo "PLUGIN_VERSION=$(grep 'version:' src/main/resources/plugin.yml | awk '{print $2}' | tr -d '\'')" >> $GITHUB_OUTPUT
+      run: echo "PLUGIN_VERSION=$(grep 'version = ' build.gradle | awk -F "'" '{print $2}')" >> $GITHUB_ENV
+
+    - name: Find JAR file
+      id: find_jar
+      run: |
+        JAR_FILE=$(find build/libs -name "*.jar" | head -n 1)
+        echo "JAR_FILE=$JAR_FILE" >> $GITHUB_ENV
+        echo "JAR_NAME=$(basename $JAR_FILE)" >> $GITHUB_ENV
+
+    - name: Copy plugin to server
+      run: cp ${{ env.JAR_FILE }} server/plugins/
+
+    - name: Start and Stop Server for testing
+      run: |
+        set -e # 确保任何失败的命令都会导致步骤失败
+        cd server
+        # 启动服务器到后台，并将所有输出（stdout和stderr）重定向到 server.log 文件
+        java -Xmx1G -Xms1G -jar paper.jar nogui > server.log 2>&1 &
+        # 获取后台Java进程的PID
+        SERVER_PID=$!
+        echo "Server started with PID: $SERVER_PID"
+        
+        sleep 180
+        
+        # 终止服务器进程
+        kill $SERVER_PID
+        echo "Server stopped."
+        
+        cd .. # 返回到仓库根目录
+    
+    - name: Read server logs for Release description
+      id: read_logs
+      run: |
+        SERVER_LOG_CONTENT=$(cat server/server.log)
+        # 将日志内容存储为多行字符串，以便作为Release body
+        echo "RELEASE_BODY<<EOF" >> $GITHUB_ENV
+        echo "$SERVER_LOG_CONTENT" >> $GITHUB_ENV
+        echo "EOF" >> $GITHUB_ENV
 
     - name: Create Release
       id: create_release
@@ -38,18 +82,31 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref }}
+        tag_name: v${{ env.PLUGIN_VERSION }}
+        release_name: Release v${{ env.PLUGIN_VERSION }}
+        body: ${{ env.RELEASE_BODY }} # 使用日志内容作为 Release 描述
         draft: false
         prerelease: false
 
-    - name: Upload Release Asset
-      id: upload_release_asset
+    - name: Upload Plugin JAR as Release Asset
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: build/libs/DeepSeek-${{ steps.get_version.outputs.PLUGIN_VERSION }}.jar
-        asset_name: DeepSeek-${{ steps.get_version.outputs.PLUGIN_VERSION }}.jar
+        asset_path: ${{ env.JAR_FILE }}
+        asset_name: ${{ env.JAR_NAME }}
         asset_content_type: application/java-archive
+
+    - name: Zip Server Directory
+      run: zip -r server.zip server/
+
+    - name: Upload Server Directory as Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: server.zip
+        asset_name: DeepSeekPlugin-Server-v${{ env.PLUGIN_VERSION }}.zip
+        asset_content_type: application/zip

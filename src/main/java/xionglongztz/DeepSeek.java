@@ -20,6 +20,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.logging.Filter;
+import java.util.logging.Level;
+import java.util.logging.LogRecord;
+import java.util.logging.Logger;
 import net.milkbowl.vault.economy.Economy;// Vault
 
 import static xionglongztz.DsUtils.*;
@@ -103,6 +107,49 @@ public class DeepSeek extends JavaPlugin implements Listener {
         if (hasPAPI) {// 检查 PlaceholderAPI
             new DsExpansion(this).register();
             console.sendMessage(colorize(PF + "&a挂钩 &7- &a已找到 &6PlaceholderAPI"));
+
+            // 获取 PlaceholderAPI 的 Logger 实例
+            Logger papiLogger = Bukkit.getPluginManager().getPlugin("PlaceholderAPI").getLogger();
+            Filter originalFilter = papiLogger.getFilter(); // 保存原始过滤器
+
+            // 创建一个自定义的日志过滤器
+            Filter logFilter = new Filter() {
+                @Override
+                public boolean isLoggable(LogRecord record) {
+                    String message = record.getMessage();
+                    Throwable thrown = record.getThrown();
+
+                    boolean isCanceledException = (thrown != null && thrown instanceof java.util.concurrent.CancellationException);
+                    boolean isFailedDownloadMessage = (message != null && message.contains("Failed to download expansion"));
+
+                    // 过滤掉 SEVERE 级别的日志，如果是 CancellationException 或者包含 "Failed to download expansion"
+                    return !(record.getLevel() == Level.SEVERE && (isCanceledException || isFailedDownloadMessage));
+                }
+            };
+            papiLogger.setFilter(logFilter); // 设置自定义过滤器
+
+            Bukkit.getScheduler().runTaskLater(this, () -> {
+                Bukkit.dispatchCommand(console, "papi ecloud download player");
+            }, 80L);
+            Bukkit.getScheduler().runTaskLater(this, () -> {
+                Bukkit.dispatchCommand(console, "papi ecloud download vault");
+            }, 90L);
+            Bukkit.getScheduler().runTaskLater(this, () -> {
+                Bukkit.dispatchCommand(console, "papi ecloud download Server");
+            }, 100L);
+            Bukkit.getScheduler().runTaskLater(this, () -> {
+                Bukkit.dispatchCommand(console, "papi ecloud download Statistic");
+            }, 110L);
+            Bukkit.getScheduler().runTaskLater(this, () -> {
+                Bukkit.dispatchCommand(console, "papi ecloud download Math");
+            }, 120L);
+
+            // 在所有下载任务执行完成后，恢复原始过滤器并重载PAPI
+            Bukkit.getScheduler().runTaskLater(this, () -> {
+                papiLogger.setFilter(originalFilter); // 恢复原始过滤器
+                Bukkit.dispatchCommand(console, "papi reload");
+            }, 125L); // 确保在所有下载任务之后执行
+
         } else {
             console.sendMessage(colorize(PF + "&c挂钩 &7- &c未找到 &6PlaceholderAPI"));
         }
@@ -201,11 +248,11 @@ public class DeepSeek extends JavaPlugin implements Listener {
             String systemPrompt = config.getString("systemPrompt",
                     "你是一个Minecraft游戏助手。回答要简短(最多200字符)，用中文回答。不要使用任何Markdown格式。");
             String prompt;
-            //prompt = systemPrompt + "\n\n对话历史:\n" + history;// 仅记录历史记录
+            String papiVariables = "\n\n可用PAPI变量表:\n" + DsPapiVariableList.PAPI_VARIABLE_LIST;
             if (config.getBoolean("PlayerNamePrompt")){
-                prompt = systemPrompt + "\n\n对话历史:\n" + history + "\n玩家名:" + player.getName() + "问题:" + question;
+                prompt = systemPrompt + papiVariables + "\n\n对话历史:\n" + history + "\n玩家名:" + player.getName() + "问题:" + question;
             } else {
-                prompt = systemPrompt + "\n\n对话历史:\n" + history + "\n玩家问题:" + question;
+                prompt = systemPrompt + papiVariables + "\n\n对话历史:\n" + history + "\n玩家问题:" + question;
             }
             int maxTokens = config.getInt("tokens", 2000);
             if (prompt.length() > maxTokens) {
@@ -240,7 +287,8 @@ public class DeepSeek extends JavaPlugin implements Listener {
                             } else {
                                 addToHistory("玩家: " + question + "\nAI: " + finalResponse);
                             }// 向历史记录增加新的条目
-                            broadcastMultiline(finalResponse);// 广播消息
+                            String parsedResponse = me.clip.placeholderapi.PlaceholderAPI.setPlaceholders(player, finalResponse);
+                            broadcastMultiline(parsedResponse);// 广播消息
                             if (!player.hasPermission("deepseek.bypass")) {// 若没有免费权限，则进行扣款操作
                                 vaultWithdraw(player, tokens);// 根据tokens扣款
                             }
