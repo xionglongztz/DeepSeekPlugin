@@ -1,24 +1,22 @@
-name: Release DeepSeek Plugin
+name: Build and Release
 
 on:
   push:
-    tags:
-      - 'v*' # 当有以 'v' 开头的标签被推送时触发
+    branches:
+      - master
 
 jobs:
-  build-and-release:
+  build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v3
 
-    - name: Set up JDK 21
-      uses: actions/setup-java@v4
+    - name: Set up JDK 17
+      uses: actions/setup-java@v3
       with:
-        java-version: '21'
+        java-version: '17'
         distribution: 'temurin'
         cache: 'gradle'
 
@@ -26,11 +24,18 @@ jobs:
       run: chmod +x gradlew
 
     - name: Build with Gradle
-      run: ./gradlew build
+      run: ./gradlew clean build
 
-    - name: Get plugin version from plugin.yml
+    - name: Get plugin version
       id: get_version
-      run: echo "PLUGIN_VERSION=$(grep 'version:' src/main/resources/plugin.yml | awk '{print $2}' | tr -d '\'')" >> $GITHUB_OUTPUT
+      run: echo "PLUGIN_VERSION=$(grep 'version = ' build.gradle | awk -F "'" '{print $2}')" >> $GITHUB_ENV
+
+    - name: Find JAR file
+      id: find_jar
+      run: |
+        JAR_FILE=$(find build/libs -name "*.jar" | head -n 1)
+        echo "JAR_FILE=$JAR_FILE" >> $GITHUB_ENV
+        echo "JAR_NAME=$(basename $JAR_FILE)" >> $GITHUB_ENV
 
     - name: Create Release
       id: create_release
@@ -38,18 +43,17 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref }}
+        tag_name: v${{ env.PLUGIN_VERSION }}
+        release_name: Release v${{ env.PLUGIN_VERSION }}
         draft: false
         prerelease: false
 
     - name: Upload Release Asset
-      id: upload_release_asset
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: build/libs/DeepSeek-${{ steps.get_version.outputs.PLUGIN_VERSION }}.jar
-        asset_name: DeepSeek-${{ steps.get_version.outputs.PLUGIN_VERSION }}.jar
+        asset_path: ${{ env.JAR_FILE }}
+        asset_name: ${{ env.JAR_NAME }}
         asset_content_type: application/java-archive
