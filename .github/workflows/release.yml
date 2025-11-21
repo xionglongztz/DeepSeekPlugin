@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - master
+  schedule:
+    - cron: '0 0 * * *'
 
 jobs:
   build:
@@ -57,8 +59,7 @@ jobs:
         SERVER_PID=$!
         echo "Server started with PID: $SERVER_PID"
         
-        # 等待服务器启动并运行一分钟 (60 秒)
-        sleep 60
+        sleep 180
         
         # 终止服务器进程
         kill $SERVER_PID
