@@ -22,6 +22,9 @@ import java.nio.file.Files;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import net.milkbowl.vault.economy.Economy;// Vault
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonSyntaxException;
 
 import static xionglongztz.DsUtils.*;
 
@@ -40,6 +43,7 @@ public class DeepSeek extends JavaPlugin implements Listener {
     private Boolean doRevoke = false;// 定义是否撤回
     public File PAPIVariableListFile;// PAPI占位符列表文件
     public static FileConfiguration PAPIVariableList;// PAPI占位符清单
+    private final Gson gson = new Gson(); // Gson 实例
     // 启动和停止相关
     @Override
     public void onEnable() {
@@ -106,7 +110,7 @@ public class DeepSeek extends JavaPlugin implements Listener {
         if (hasPAPI) {// 检查 PlaceholderAPI
             new DsExpansion(this).register();
             console.sendMessage(colorize(PF + "&a挂钩 &7- &a已找到 &6PlaceholderAPI"));
-            PAPIVariableListFile = new File(getDataFolder(), "Quizs.yml");
+            PAPIVariableListFile = new File(getDataFolder(), "Expansions.yml"); // 修复：指向 Expansions.yml
             if (!PAPIVariableListFile.exists()) {
                 saveResource("Expansions.yml", false);
                 console.sendMessage(colorize(PF + "&a检测到PlaceholderAPI安装,已创建默认占位符文件!"));
@@ -255,7 +259,6 @@ public class DeepSeek extends JavaPlugin implements Listener {
                             } else {
                                 addToHistory("玩家: " + question + "\nAI: " + finalResponse);
                             }// 向历史记录增加新的条目
-                            // TODO:这里似乎是暴力的字符串拼接，没有按照DeepSeek官方的方法写，无所谓了，回头改
                             broadcastMultiline(parsePlaceholders(player, finalResponse));// 广播消息
                             if (!player.hasPermission("deepseek.bypass")) {// 若没有免费权限，则进行扣款操作
                                 vaultWithdraw(player, tokens);// 根据tokens扣款
@@ -306,22 +309,36 @@ public class DeepSeek extends JavaPlugin implements Listener {
                 StringBuilder response = new StringBuilder();
                 String responseLine;
                 while ((responseLine = br.readLine()) != null) {
-                    response.append(responseLine.trim());
+                    response.append(responseLine); // 将读取到的行追加到 StringBuilder 中
                 }
-                int tokenIndex = response.indexOf("\"completion_tokens\":") + 20; // 20 是 "\"completion_tokens\":" 的长度
-                int tokenEndIndex = response.indexOf(",", tokenIndex); // 可能是逗号或 } 结尾
-                if (tokenEndIndex == -1) {
-                    tokenEndIndex = response.indexOf("}", tokenIndex); // 检查是否在末尾
+                JsonObject jsonResponse = gson.fromJson(response.toString(), JsonObject.class);
+
+                // 获取 completion_tokens
+                if (jsonResponse.has("usage") && jsonResponse.getAsJsonObject("usage").has("completion_tokens")) {
+                    tokens = jsonResponse.getAsJsonObject("usage").get("completion_tokens").getAsInt();
+                } else {
+                    getLogger().warning("DeepSeek API response missing 'completion_tokens' in 'usage' object.");
+                    tokens = 0; // 默认值
                 }
-                String tokenStr = response.substring(tokenIndex, tokenEndIndex).trim();
-                tokens = Integer.parseInt(tokenStr);// 计算tokens
-                int contentIndex = response.indexOf("\"content\":\"") + 11;
-                int endIndex = response.indexOf("\"", contentIndex);
-                return response.substring(contentIndex, endIndex).replace("\\n", "\n");
-                // TODO:这里可能有潜在的Token记录错误的问题，会影响Vault收费功能，待判断
+
+                // 获取 content
+                if (jsonResponse.has("choices") && jsonResponse.getAsJsonArray("choices").size() > 0) {
+                    JsonObject choice = jsonResponse.getAsJsonArray("choices").get(0).getAsJsonObject();
+                    if (choice.has("message") && choice.getAsJsonObject("message").has("content")) {
+                        return choice.getAsJsonObject("message").get("content").getAsString();
+                    }
+                }
+                getLogger().warning("DeepSeek API response missing 'content' in 'choices[0].message' object.");
+                return ""; // 默认返回空字符串或者抛出异常
+            } catch (JsonSyntaxException e) {
+                throw new IOException("Failed to parse JSON response: " + e.getMessage(), e);
             }
         } else {
-            throw new IOException("HTTP错误: " + responseCode);
+            try (BufferedReader errorReader = new BufferedReader(
+                    new InputStreamReader(connection.getErrorStream(), StandardCharsets.UTF_8))) {
+                String errorResponse = errorReader.lines().collect(java.util.stream.Collectors.joining("\n"));
+                throw new IOException("HTTP错误: " + responseCode + ", 响应: " + errorResponse);
+            }
         }
     }// 向DeepSeek服务器发出请求
     public void revoke() {
