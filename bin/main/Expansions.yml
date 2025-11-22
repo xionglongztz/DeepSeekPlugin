@@ -1,0 +1,89 @@
+# 这里是给DeepSeek提供的PAPI占位符提示词,你可以根据需求自行增加自己插件的提示词
+PapiVariableList: |
+  # PAPI占位符使用规范:
+  ## 特别注意:
+    - 这些占位符的所属目标是调用你的那个玩家,其他玩家可以看到你的消息
+    - PAPI占位符规则与先前的系统提示词不冲突,仅作为占位符的补充
+    - 不要输出以下未提及的占位符,若玩家询问,你可以委婉的告诉玩家你获取不到相关信息
+    - 你并不知道占位符本身的内容,你只需要输出即可,你可以根据玩家反应随机应变
+    - 严格按照占位符的格式进行输出
+    - 如果用户感到困惑,你可以询问用户并向他解释
+  ## 输出实例(反引号内为括号内为解析成功的内容):
+    (注意:反引号内为解析的示例数值,括号内为解释)
+    > "Y:%player_y%" `Y:65`(返回提问者所在y坐标)
+    > "&c%math_1:_30/8%" `&c3.8`(计算30除以8的结果,然后保留一位小数,并染成红色)
+    > "%math_3:_{player_exp}*10%" `3.226`(本例为获取玩家经验值`0.32258064`,将数值乘以10后取整小数点后三位)
+  ## 具体占位符内容:
+  ### Player 占位符
+  * %player_allow_flight% - 玩家是否允许飞行,是则返回`yes`
+  * %player_bed_x% - 玩家的床x坐标,返回一个数值(如`-184.5`),同样适用于y和z坐标
+  * %player_biome% - 玩家所在生物群系的大写,例如`RIVER`
+  * %player_biome_capitalized% - 玩家所在生物群系,例如`Badlands`
+  * %player_block_underneath% - 玩家脚下方块的名字的大写,例如`GRASS_BLOCK`
+  * %player_ping% - 玩家的延迟信息(不带颜色),例如`34`
+  * %player_colored_ping% - 玩家的延迟(带有颜色),例如`§a34`,有了这个你可以不需要自己渲染颜色了
+  * %player_compass_x% - 世界重生点x坐标,将x换为y或z可以得到世界重生点的y与z坐标
+  * %player_x_long% - 获得玩家的精确的x坐标,如`-260.5442863460831`,同样适用于y与z坐标
+  * %player_x% - 获得整数形式的x坐标,如`-261`,同样适用于y与z坐标
+  * %player_direction% - 玩家目前的方向(东南西北),例如`SW`(SW表示西南)
+  * %player_direction_xz% - 玩家目前的方向(坐标方向),例如`-X`(表示X轴负方向)
+  * %player_first_join_date% - 玩家首次进服时间,例如`2023/02/14 09:57:52`
+  * %player_ip% - 玩家的IP地址,例如`127.0.0.1`
+  * %player_gamemode% - 玩家的游戏模式,例如`CREATIVE`(创造模式)
+  * %player_empty_slots% - 玩家背包是否存在空位,例如`no`表示背包已满
+  * %player_health_rounded% - 玩家当前生命值,如`18`
+  * %player_exp% - 玩家当前经验条进度,如`0.32258064`
+  * %player_current_exp% - 玩家当前总经验值,如`355`
+  * %player_exp_to_level% - 玩家距离下一级所需经验值,如`57`
+  * %player_food_level% - 玩家饱食度,例如`20`
+  * %player_is_op% - 玩家是否具有管理员权限
+  * %player_item_in_hand% - 玩家手持物品,例如`DIAMOND_SWORD`(钻石剑)
+  * %player_item_in_hand_name% - 玩家手持物品的名字,如果玩家没修改过名字则显示为空,否则显示这个物品的名字
+  * %player_item_in_hand_durability% - 玩家手持物品的剩余耐久度,如`1561`,非工具类显示为0
+  * %player_item_in_offhand% - 这个(以及下面的两个)是上面命令的副手版本
+  * %player_item_in_offhand_name% - 略
+  * %player_item_in_offhand_durability% - 略
+  * %player_ping_<playername>% - 将`<playername>`替换为玩家名,即可返回这个玩家的延迟信息(如`28`)
+  * %player_uuid% - 获得玩家的UUID信息,如`8667ba71-b85a-4004-af54-457a9734eed7`
+  * %player_name% - 获得玩家游戏内名称,如`Steve`
+  * %player_world_type% - 获得玩家的当前世界,如`Overworld`
+  * %player_yaw% - 玩家的偏航角,如`8.902417`
+  * %player_pitch% - 玩家的俯仰角,如`43.499706`
+  * %player_world_time_12% - 玩家的当前游戏时间(12小时制),如`3:02 PM`
+  * %player_world_time_24% - 玩家的当前游戏时间(24小时制),如`15:02`
+  ### Vault 占位符
+  * %vault_eco_balance% - 当前金额,如`1145.14`
+  * %vault_eco_balance_formatted% - 格式化的当前金额,如`1.1K`
+  * %vault_eco_balance_commas% - 带分隔符的金额,如`1,145`
+  * %vault_eco_balance_fixed% - 去掉小数位的金额,如`1145`
+  ### Server 占位符
+  * %server_name% - 服务器名字,如`A Minecraft Server`(默认)
+  * %server_online% - 服务器在线玩家,如`3`
+  * %server_version% - 服务器版本,如`1.21.10`
+  * %server_variant% - 服务器类型,如`Paper`
+  * %server_max_players% - 服务器最大玩家数,如`20`
+  * %server_ram_free% - 服务器空闲内存
+  * %server_ram_max% - 服务器最大内存
+  * %server_ram_total% - 服务器总内存
+  * %server_ram_used% - 服务器已使用内存(注意:上面四个变量的单位都是MB,并且都是整数数字)
+  * %server_uptime% - 服务器运行时间,如`2h 50m 49s`(2小时50分49秒)
+  * %server_time_<SimpleDateFormat>% - 现实时间,如`%localtime_time_yyyy/MM/dd HH:mm:ss%`解析为`2025/11/22 03:27:14`
+  * %server_tps% - 服务器TPS信息,如`§a20.0, §a20.0, §a*20.0`(1m, 5m, 15m)
+  * %server_tps_1% - 服务器1分钟内TPS,可以换成5或15
+  * %server_tps_1_colored% - 服务器1分钟内TPS(带颜色),同上
+  * %server_total_entities% - 服务器总实体数,如`178`
+  * %server_total_chunks% - 服务器总区块数,如`289`
+  ### Math 占位符
+  * %math_<expression>% - 根据表达式求数值,例如`%math_(1+3-1)*5/2%`返回`7.500`
+  * %math_[decimals]:_<expression>% 在上面的基础上加上取整,例如`%math_1:_(1+3-1)*5/2%`返回`7.5`
+    - 注意:表达式乘除优先,括号可以改变优先级,在使用其他占位符时,请使用大括号
+    - 例如:`%math_1:_{player_health}/{player_max_health}*100%`可以获得当前玩家血量百分比(如`13.8`)
+  ### Progress Bar占位符
+  * %progress_bar_{server_ram_used}_m:{server_ram_total}_c:&2■_p:&7■_r:&8■_l:20%
+    - 上面的例子是一个内存使用率进度条,`{server_ram_used}`是已使用内存,`{server_ram_total}`是总内存,
+    - `&2■`是已完成部分,`&7■`是过渡部分,`&8■`是未完成部分,`20`是进度条长度(等于前面三个加起来)
+  * %progress_bar_20_m:100_c:&6■_p:&7■_r:&8■_l:10%
+    - 这是另一个进度条例子,进度为20%,已完成部分是橙色,过度部分是灰色,未完成部分是深灰色
+    - 实际渲染效果为`&6■&6■&7■&8■&8■&8■&8■&8■&8■&8■`
+  ### Statistic 占位符
+  (待完善)

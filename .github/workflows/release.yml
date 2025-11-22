@@ -78,37 +78,22 @@ jobs:
         echo "$SERVER_LOG_CONTENT" >> $GITHUB_ENV
         echo "EOF" >> $GITHUB_ENV
 
-    - name: Create Release
+    - name: Zip Server Directory
+      run: zip -r server.zip server/
+
+    - name: Create or Update Release
       id: create_release
-      uses: actions/create-release@v1
+      uses: softprops/action-gh-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: v${{ env.PLUGIN_VERSION }}
-        release_name: Release v${{ env.PLUGIN_VERSION }}
-        body: ${{ env.RELEASE_BODY }} # 使用日志内容作为 Release 描述
+        name: Release v${{ env.PLUGIN_VERSION }}
+        body: ${{ env.RELEASE_BODY }}
         draft: false
         prerelease: false
-
-    - name: Upload Plugin JAR as Release Asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ${{ env.JAR_FILE }}
-        asset_name: ${{ env.JAR_NAME }}
-        asset_content_type: application/java-archive
-
-    - name: Zip Server Directory
-      run: zip -r server.zip server/
-
-    - name: Upload Server Directory as Release Asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: server.zip
-        asset_name: DeepSeekPlugin-Server-v${{ env.PLUGIN_VERSION }}.zip
-        asset_content_type: application/zip
+        # 如果 release 已经存在，则替换它
+        replaces: true
+        files: |
+          ${{ env.JAR_FILE }}
+          server.zip
