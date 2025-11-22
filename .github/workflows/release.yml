@@ -61,7 +61,7 @@ jobs:
         SERVER_PID=$!
         echo "Server started with PID: $SERVER_PID"
         
-        sleep 180
+        sleep 60
         
         # 终止服务器进程
         kill $SERVER_PID
