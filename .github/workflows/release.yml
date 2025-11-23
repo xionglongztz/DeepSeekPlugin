@@ -12,6 +12,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write
+      id-token: write
 
     steps:
     - name: Checkout repository
@@ -53,21 +55,41 @@ jobs:
 
     - name: Start and Stop Server for testing
       run: |
-        set -e # 确保任何失败的命令都会导致步骤失败
+        set -e
         cd server
+        # 关闭 online-mode
+        echo "online-mode=false" > server.properties
         # 启动服务器到后台，并将所有输出（stdout和stderr）重定向到 server.log 文件
         java -Xmx1G -Xms1G -jar paper.jar nogui > server.log 2>&1 &
         # 获取后台Java进程的PID
         SERVER_PID=$!
         echo "Server started with PID: $SERVER_PID"
+
+        # 返回到Actions根目录以创建mcbot文件夹
+        cd .. 
+
+        # 创建mcbot文件夹并下载bot文件
+        mkdir mcbot
+        curl -L -o mcbot/FishingBot-2.13.8.jar https://github.com/ra1nyxin/tmpMCtestBot/releases/download/1.0.0/FishingBot-2.13.8.jar
+        curl -L -o mcbot/config.json https://github.com/ra1nyxin/tmpMCtestBot/releases/download/1.0.0/config.json
         
+        # 启动FishingBot到后台
+        java -jar mcbot/FishingBot-2.13.8.jar -nogui > mcbot/bot.log 2>&1 &
+        BOT_PID=$!
+        echo "FishingBot started with PID: $BOT_PID"
+
+        # 返回server目录继续执行sleep
+        cd server
         sleep 60
         
         # 终止服务器进程
         kill $SERVER_PID
         echo "Server stopped."
-        
-        cd .. # 返回到仓库根目录
+
+        # 返回到Actions根目录并终止Bot进程
+        cd ..
+        kill $BOT_PID
+        echo "FishingBot stopped."
     
     - name: Read server logs for Release description
       id: read_logs
