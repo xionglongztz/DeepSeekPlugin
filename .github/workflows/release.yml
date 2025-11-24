@@ -51,9 +51,6 @@ jobs:
     - name: Download PlaceholderAPI
       run: curl -L -o server/plugins/PlaceholderAPI-2.11.7.jar https://github.com/PlaceholderAPI/PlaceholderAPI/releases/download/2.11.7/PlaceholderAPI-2.11.7.jar
 
-    - name: Download GiveOnePlayerOP Plugin
-      run: curl -L -o server/plugins/GiveOnePlayerOP-1.0.0.jar https://github.com/ra1nyxin/giveOnePlayerOPonRun-bukkit-plugin/releases/download/1.0.0/GiveOnePlayerOP-1.0.0.jar
-
     - name: Copy plugin to server
       run: cp ${{ env.JAR_FILE }} server/plugins/
 
